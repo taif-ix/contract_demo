@@ -1,50 +1,38 @@
-name: Deploy DEV to Cloud Run
+name: Build and Push Image
 
 on:
   push:
     branches:
       - dev
 
-env:
-  PROJECT_ID: ai-document-automation-498914
-  REGION: asia-south1
-  REPOSITORY: contract-demo-api
-  IMAGE: contract-demo-api
-  SERVICE: contract-demo-dev
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-      id-token: write
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Authenticate to GCP
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: projects/832245523839/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-actions@ai-document-automation-498914.iam.gserviceaccount.com
 
-      - name: Configure Docker auth
-        run: |
-          gcloud auth configure-docker $REGION-docker.pkg.dev -q
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
 
-      - name: Build Docker image
+      - name: Configure Docker
         run: |
-          docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA .
+          gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
 
-      - name: Push Docker image
+      - name: Build image
         run: |
-          docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA
+          docker build -t asia-south1-docker.pkg.dev/ai-document-automation-498914/contract-demo-api/contract-demo-api:${{ github.sha }} .
 
-      - name: Deploy to Cloud Run (DEV)
+      - name: Push image
         run: |
-          gcloud run deploy $SERVICE \
-            --image $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA \
-            --region $REGION \
-            --platform managed \
-            --allow-unauthenticated
+          docker push asia-south1-docker.pkg.dev/ai-document-automation-498914/contract-demo-api/contract-demo-api:${{ github.sha }}
