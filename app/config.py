@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     gcs_bucket_name: str = ""
     gcs_folder: str = "contracts"
-
+    # gcs_project_id: str
+    # gcs_bucket_name: str
+    # gcs_folder: str
 
 @lru_cache
 def get_settings() -> Settings:

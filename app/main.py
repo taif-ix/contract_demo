@@ -1,15 +1,26 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-
+from fastapi.middleware.cors import CORSMiddleware
 from app.routes import contracts, history, reports, search
+from app.routes import api, contracts, history, reports, search
+from app.routes import analytics, contracts, history, reports, search
 
 app = FastAPI(title="AI Document Intelligence Demo")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(api.router)
 app.include_router(contracts.router)
 app.include_router(search.router)
 app.include_router(reports.router)
 app.include_router(history.router)
-
+app.include_router(analytics.router)
 
 @app.get("/", response_class=HTMLResponse)
 def home() -> HTMLResponse:

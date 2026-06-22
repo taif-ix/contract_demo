@@ -1,4 +1,5 @@
 from pathlib import Path
+import textract
 
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt"}
@@ -51,31 +52,49 @@ def _extract_from_docx(file_path: Path) -> str:
 
 def _extract_from_doc(file_path: Path) -> str:
     """
-    .doc (old Word format) extraction using antiword or textract.
-    Falls back to reading as plain text if tools are unavailable.
+    Extract old Microsoft Word .doc files.
     """
+
+    import subprocess
+
+    # Try antiword
     try:
-        import subprocess
         result = subprocess.run(
             ["antiword", str(file_path)],
-            capture_output=True, text=True, timeout=30
+            capture_output=True,
+            text=True,
+            timeout=30
         )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+
+        if result.returncode == 0:
+            text = result.stdout.strip()
+
+            if text:
+                return text
+
+    except Exception:
         pass
 
+
+    # Try textract
     try:
         import textract
-        return textract.process(str(file_path)).decode("utf-8", errors="ignore").strip()
+
+        text = textract.process(
+            str(file_path)
+        ).decode(
+            "utf-8",
+            errors="ignore"
+        )
+
+        if text.strip():
+            return text.strip()
+
     except Exception:
         pass
 
-    # Last resort: read raw bytes and decode, works for some .doc files
-    try:
-        return file_path.read_text(encoding="utf-8", errors="ignore").strip()
-    except Exception:
-        return ""
+
+    return ""
 
 
 def _extract_from_txt(file_path: Path) -> str:

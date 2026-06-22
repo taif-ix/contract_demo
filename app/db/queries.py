@@ -80,12 +80,22 @@ def save_risks(engine: Engine, document_id: str, risks: list[dict]) -> None:
 def get_all_documents(engine: Engine) -> list:
     with engine.begin() as conn:
         return conn.execute(text("""
-            SELECT document_id, file_name, document_type, effective_date, expiry_date,
-                   contract_value, governing_law, risk_score, mode, gcs_path, raw_text
+            SELECT
+                document_id,
+                file_name,
+                document_type,
+                effective_date,
+                expiry_date,
+                contract_value,
+                governing_law,
+                risk_score,
+                mode,
+                gcs_path,
+                raw_text,
+                uploaded_at
             FROM poc_ai_doc.documents
             ORDER BY uploaded_at DESC
         """)).fetchall()
-
 
 def get_document_clauses(engine: Engine, document_id: str) -> list:
     with engine.begin() as conn:

@@ -11,6 +11,17 @@ from app.db import (
 OUTPUT_PATH = Path("outputs/contracts_analysis.xlsx")
 
 
+def clean_excel_text(value):
+    if value is None:
+        return ""
+
+    value = str(value)
+
+    return "".join(
+        c for c in value
+        if c in "\n\r\t" or ord(c) >= 32
+    )
+
 def create_excel_report(engine: Engine) -> Path:
     """Build a multi-sheet Excel workbook directly from the DB."""
     documents = get_all_documents(engine)
@@ -39,20 +50,26 @@ def create_excel_report(engine: Engine) -> Path:
         for clause in get_document_clauses(engine, doc_id):
             clauses_rows.append({
                 "document_id": doc_id, "file_name": doc.file_name,
-                "clause_type": clause.clause_type, "clause_text": clause.clause_text,
+                "clause_type": clause.clause_type, "clause_text": clean_excel_text(clause.clause_text),
             })
 
         for risk in get_document_risks(engine, doc_id):
             risks_rows.append({
                 "document_id": doc_id, "file_name": doc.file_name,
-                "risk": risk.risk, "severity": risk.severity, "reason": risk.reason,
+                "risk": risk.risk, "severity": risk.severity, "reason": clean_excel_text(risk.reason),
             })
 
         raw_text_rows.append({
             "document_id": doc_id,
             "file_name": doc.file_name,
-            "raw_text": (doc.raw_text or "")[:30_000],
+            "raw_text": clean_excel_text(
+                (doc.raw_text or "")[:30_000]
+            ),
         })
+
+        # for row in raw_text_rows:
+        #     print("RAW TEXT PREVIEW:")
+        #     print(repr(row["raw_text"][:500]))
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with pd.ExcelWriter(OUTPUT_PATH, engine="openpyxl") as writer:
