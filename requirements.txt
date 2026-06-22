@@ -17,5 +17,5 @@ httpx>=0.27.0             # TestClient transport
 pyodbc
 pytesseract
 pillow
-pymupd
+pymupdf
 textract
