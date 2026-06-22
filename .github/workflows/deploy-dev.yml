@@ -1,0 +1,50 @@
+name: Deploy DEV to Cloud Run
+
+on:
+  push:
+    branches:
+      - dev
+
+env:
+  PROJECT_ID: ai-document-automation-498914
+  REGION: asia-south1
+  REPOSITORY: contract-demo-api
+  IMAGE: contract-demo-api
+  SERVICE: contract-demo-dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure Docker auth
+        run: |
+          gcloud auth configure-docker $REGION-docker.pkg.dev -q
+
+      - name: Build Docker image
+        run: |
+          docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA .
+
+      - name: Push Docker image
+        run: |
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA
+
+      - name: Deploy to Cloud Run (DEV)
+        run: |
+          gcloud run deploy $SERVICE \
+            --image $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA \
+            --region $REGION \
+            --platform managed \
+            --allow-unauthenticated

@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+develop-eggs/
 dist/
 downloads/
 eggs/
@@ -25,62 +26,59 @@ wheels/
 
 # Virtual environments
 venv/
-.venv/
 env/
 ENV/
+.venv/
+.env/
 
-# Environment variables
+# FastAPI / Uvicorn / general runtime
+*.log
+*.sqlite3
+*.db
+
+# Environment variables (VERY IMPORTANT for FastAPI)
 .env
 .env.*
 !.env.example
 
-# IDEs and editors
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Testing
+# Testing / coverage
 .pytest_cache/
 .coverage
-.coverage.*
 htmlcov/
 .tox/
 .nox/
+coverage.xml
 
-# Type checking
+# Mypy / type checking
 .mypy_cache/
-.pyre/
-.pytype/
+.dmypy.json
+dmypy.json
 
-# Ruff
-.ruff_cache/
+# Pyright / Pylance
+.pyright/
+pyrightconfig.json
 
-# FastAPI / Uvicorn logs
-*.log
+# Jupyter Notebook
+.ipynb_checkpoints
 
-# SQLite databases
-*.db
-*.sqlite3
-
-# Jupyter
-.ipynb_checkpoints/
+# IDEs
+.vscode/
+.idea/
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# Temporary files
-tmp/
-temp/
+# Docker (optional)
+docker-compose.override.yml
 
-# Secrets and certificates
-*.pem
-*.key
-*.crt
+# Logs
+logs/
+*.log
 
-# Coverage reports
-coverage.xml
+# Local development files
+*.pid
+*.seed
 
-# pyenv
-.python-version
+# PyCharm
+*.iml
