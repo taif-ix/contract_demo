@@ -92,7 +92,9 @@ def get_all_documents(engine: Engine) -> list:
                 mode,
                 gcs_path,
                 raw_text,
-                uploaded_at
+                uploaded_at,
+                status,
+                error_message
             FROM poc_ai_doc.documents
             ORDER BY uploaded_at DESC
         """)).fetchall()
@@ -167,3 +169,102 @@ def get_search_history(engine: Engine) -> list:
 def get_upload_history(engine: Engine) -> list:
     with engine.begin() as conn:
         return conn.execute(text("EXEC app.sp_get_upload_history")).fetchall()
+    
+def create_queued_document(
+    engine: Engine,
+    *,
+    document_id: str,
+    file_name: str,
+    gcs_path: str,
+    raw_text: str = "",
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO poc_ai_doc.documents
+                (document_id, file_name, document_type, effective_date, expiry_date,
+                 contract_value, governing_law, risk_score, mode, gcs_path, raw_text,
+                 status, error_message)
+            VALUES
+                (:document_id, :file_name, '', '', '',
+                 '', '', NULL, '', :gcs_path, :raw_text,
+                 'queued', NULL)
+        """), {
+            "document_id": document_id,
+            "file_name": file_name,
+            "gcs_path": gcs_path,
+            "raw_text": raw_text,
+        })
+
+
+def update_document_status(
+    engine: Engine,
+    *,
+    document_id: str,
+    status: str,
+    error_message: str | None = None,
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE poc_ai_doc.documents
+            SET status = :status,
+                error_message = :error_message
+            WHERE document_id = :document_id
+        """), {
+            "document_id": document_id,
+            "status": status,
+            "error_message": error_message,
+        })
+
+
+def update_document_analysis(
+    engine: Engine,
+    *,
+    document_id: str,
+    document_type: str,
+    effective_date: str,
+    expiry_date: str,
+    contract_value: str,
+    governing_law: str,
+    risk_score: Any,
+    mode: str,
+    raw_text: str,
+) -> None:
+    risk_val: Optional[int] = None
+    if risk_score not in (None, ""):
+        try:
+            risk_val = int(float(risk_score))
+        except (ValueError, TypeError):
+            pass
+
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE poc_ai_doc.documents
+            SET document_type = :document_type,
+                effective_date = :effective_date,
+                expiry_date = :expiry_date,
+                contract_value = :contract_value,
+                governing_law = :governing_law,
+                risk_score = :risk_score,
+                mode = :mode,
+                raw_text = :raw_text,
+                status = 'completed',
+                error_message = NULL
+            WHERE document_id = :document_id
+        """), {
+            "document_id": document_id,
+            "document_type": document_type,
+            "effective_date": effective_date,
+            "expiry_date": expiry_date,
+            "contract_value": contract_value,
+            "governing_law": governing_law,
+            "risk_score": risk_val,
+            "mode": mode,
+            "raw_text": raw_text,
+        })
+
+
+def clear_document_details(engine: Engine, document_id: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM poc_ai_doc.parties WHERE document_id = :document_id"), {"document_id": document_id})
+        conn.execute(text("DELETE FROM poc_ai_doc.clauses WHERE document_id = :document_id"), {"document_id": document_id})
+        conn.execute(text("DELETE FROM poc_ai_doc.risks WHERE document_id = :document_id"), {"document_id": document_id})
