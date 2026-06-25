@@ -33,9 +33,7 @@ jobs:
         run: |
           docker build \
             -t asia-south1-docker.pkg.dev/ai-document-automation-498914/contract-demo-api/contract-demo-api:${{ github.sha }} \
-            -t asia-south1-docker.pkg.dev/ai-document-automation-498914/contract-demo-api/contract-demo-api:latest \
             .
       - name: Push image
         run: |
           docker push asia-south1-docker.pkg.dev/ai-document-automation-498914/contract-demo-api/contract-demo-api:${{ github.sha }}
-          docker push asia-south1-docker.pkg.dev/ai-document-automation-498914/contract-demo-api/contract-demo-api:latest
