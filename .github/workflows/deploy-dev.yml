@@ -12,6 +12,12 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ai-document-automation-498914
+      REGION: asia-south1
+      SERVICE_NAME: contract-demo-api
+      REPOSITORY: contract-demo-api
+      IMAGE_NAME: contract-demo-api
 
     steps:
       - uses: actions/checkout@v4
@@ -32,8 +38,18 @@ jobs:
       - name: Build image
         run: |
           docker build \
-            -t asia-south1-docker.pkg.dev/ai-document-automation-498914/contract-demo-api/contract-demo-api:${{ github.sha }} \
+            -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:${{ github.sha }} \
             .
       - name: Push image
         run: |
-          docker push asia-south1-docker.pkg.dev/ai-document-automation-498914/contract-demo-api/contract-demo-api:${{ github.sha }}
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:${{ github.sha }}
+
+      - name: Deploy Cloud Run service
+        run: |
+          gcloud run deploy $SERVICE_NAME \
+            --project=$PROJECT_ID \
+            --region=$REGION \
+            --image=$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:${{ github.sha }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --quiet

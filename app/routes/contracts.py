@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy.engine import Engine
 
@@ -10,6 +10,7 @@ from app.config import Settings, get_settings
 from app.dependencies import get_db_engine
 from app.services import upload_file_to_gcs
 from app.services.pubsub import publish_document_job
+from worker.services.processor import process_document_job
 from app.utils import is_supported
 from app.db import (
     create_queued_document,
@@ -27,6 +28,7 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 @router.post("/upload-contracts")
 async def upload_contracts(
+    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     settings: Settings = Depends(get_settings),
     engine: Engine = Depends(get_db_engine),
@@ -63,13 +65,28 @@ async def upload_contracts(
             gcs_path=gcs_path,
         )
 
-        message_id = publish_document_job(
-            project_id=settings.pubsub_project_id or settings.gcs_project_id,
-            topic_id=settings.pubsub_topic_id,
-            document_id=document_id,
-            gcs_path=gcs_path,
-            file_name=original_name,
-        )
+        message_id = None
+        processing_mode = "pubsub"
+
+        try:
+            message_id = publish_document_job(
+                project_id=settings.pubsub_project_id or settings.gcs_project_id,
+                topic_id=settings.pubsub_topic_id,
+                document_id=document_id,
+                gcs_path=gcs_path,
+                file_name=original_name,
+            )
+        except Exception as exc:
+            processing_mode = "local_background"
+            print("PUBSUB ERROR; falling back to local background processing:", repr(exc))
+            background_tasks.add_task(
+                process_document_job,
+                engine=engine,
+                settings=settings,
+                document_id=document_id,
+                gcs_path=gcs_path,
+                file_name=original_name,
+            )
 
         queued.append({
             "document_id": document_id,
@@ -77,6 +94,7 @@ async def upload_contracts(
             "status": "queued",
             "gcs_path": gcs_path,
             "message_id": message_id,
+            "processing_mode": processing_mode,
         })
 
     return JSONResponse({

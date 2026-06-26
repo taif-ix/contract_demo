@@ -14,8 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# copy app
+# copy app and worker
 COPY app ./app
+COPY worker ./worker
 
 # Cloud Run uses 8080
 ENV PORT=8000
