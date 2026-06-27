@@ -2,7 +2,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
+from app.logging_config import configure_logging
 from app.routes import analytics, api, contracts, history, reports, search, worker
+
+configure_logging()
 
 app = FastAPI(title="AI Document Intelligence Demo")
 
