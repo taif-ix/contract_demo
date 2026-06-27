@@ -76,6 +76,10 @@ docker-compose.override.yml
 logs/
 *.log
 
+# Runtime document storage
+uploads/
+worker_downloads/
+
 # Local development files
 *.pid
 *.seed
