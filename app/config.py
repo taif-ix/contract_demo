@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     pubsub_project_id: str = ""
     pubsub_topic_id: str = "document-processing"
+    process_uploads_locally: bool = False
 
 
 @lru_cache

@@ -1,9 +1,11 @@
 import uuid
+import mimetypes
 from pathlib import Path
 from typing import Annotated, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from google.cloud import storage
 from sqlalchemy.engine import Engine
 
 from app.config import Settings, get_settings
@@ -15,6 +17,7 @@ from app.utils import is_supported
 from app.db import (
     create_queued_document,
     get_all_documents,
+    get_document_by_id,
     get_document_clauses,
     get_document_risks,
     get_document_parties,
@@ -66,19 +69,9 @@ async def upload_contracts(
         )
 
         message_id = None
-        processing_mode = "pubsub"
+        processing_mode = "local_background" if settings.process_uploads_locally else "pubsub"
 
-        try:
-            message_id = publish_document_job(
-                project_id=settings.pubsub_project_id or settings.gcs_project_id,
-                topic_id=settings.pubsub_topic_id,
-                document_id=document_id,
-                gcs_path=gcs_path,
-                file_name=original_name,
-            )
-        except Exception as exc:
-            processing_mode = "local_background"
-            print("PUBSUB ERROR; falling back to local background processing:", repr(exc))
+        if settings.process_uploads_locally:
             background_tasks.add_task(
                 process_document_job,
                 engine=engine,
@@ -87,6 +80,26 @@ async def upload_contracts(
                 gcs_path=gcs_path,
                 file_name=original_name,
             )
+        else:
+            try:
+                message_id = publish_document_job(
+                    project_id=settings.pubsub_project_id or settings.gcs_project_id,
+                    topic_id=settings.pubsub_topic_id,
+                    document_id=document_id,
+                    gcs_path=gcs_path,
+                    file_name=original_name,
+                )
+            except Exception as exc:
+                processing_mode = "local_background"
+                print("PUBSUB ERROR; falling back to local background processing:", repr(exc))
+                background_tasks.add_task(
+                    process_document_job,
+                    engine=engine,
+                    settings=settings,
+                    document_id=document_id,
+                    gcs_path=gcs_path,
+                    file_name=original_name,
+                )
 
         queued.append({
             "document_id": document_id,
@@ -174,3 +187,36 @@ async def get_contracts(
         })
 
     return contracts
+
+
+@router.get("/api/contracts/{document_id}/file")
+async def get_contract_file(
+    document_id: str,
+    settings: Annotated[Settings, Depends(get_settings)],
+    engine: Annotated[Engine, Depends(get_db_engine)],
+):
+    document = get_document_by_id(engine, document_id)
+
+    if not document:
+        return JSONResponse({"error": "Document not found"}, status_code=404)
+
+    if not document.gcs_path:
+        return JSONResponse({"error": "Document does not have a GCS path"}, status_code=404)
+
+    bucket = storage.Client().bucket(settings.gcs_bucket_name)
+    blob = bucket.blob(document.gcs_path)
+
+    if not blob.exists():
+        return JSONResponse({"error": "Document file not found in Cloud Storage"}, status_code=404)
+
+    media_type = mimetypes.guess_type(document.file_name)[0] or "application/octet-stream"
+    disposition_type = "inline" if media_type in ("application/pdf", "text/plain") else "attachment"
+
+    return Response(
+        blob.download_as_bytes(),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'{disposition_type}; filename="{document.file_name}"',
+            "Cache-Control": "private, max-age=300",
+        },
+    )

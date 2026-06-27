@@ -1,4 +1,5 @@
 from pathlib import Path
+from io import BytesIO
 import textract
 
 
@@ -34,7 +35,38 @@ def _extract_from_pdf(file_path: Path) -> str:
     with fitz.open(file_path) as doc:
         for page_no, page in enumerate(doc, start=1):
             text_output += f"\n--- Page {page_no} ---\n{page.get_text()}"
-    return text_output.strip()
+
+    extracted = text_output.strip()
+    if extracted:
+        return extracted
+
+    # Fallback for PDFs where PyMuPDF does not detect embedded text.
+    try:
+        from pdfminer.high_level import extract_text as pdfminer_extract_text
+
+        extracted = pdfminer_extract_text(str(file_path)).strip()
+        if extracted:
+            return extracted
+    except Exception:
+        pass
+
+    # Final fallback for scanned/image PDFs. Requires the tesseract binary.
+    try:
+        from PIL import Image
+        import pytesseract
+
+        ocr_text = []
+        with fitz.open(file_path) as doc:
+            for page_no, page in enumerate(doc, start=1):
+                pixmap = page.get_pixmap(dpi=200)
+                image = Image.open(BytesIO(pixmap.tobytes("png")))
+                page_text = pytesseract.image_to_string(image).strip()
+                if page_text:
+                    ocr_text.append(f"\n--- Page {page_no} ---\n{page_text}")
+
+        return "\n".join(ocr_text).strip()
+    except Exception:
+        return ""
 
 
 def _extract_from_docx(file_path: Path) -> str:

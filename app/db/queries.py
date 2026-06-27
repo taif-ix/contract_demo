@@ -99,6 +99,21 @@ def get_all_documents(engine: Engine) -> list:
             ORDER BY uploaded_at DESC
         """)).fetchall()
 
+
+def get_document_by_id(engine: Engine, document_id: str):
+    with engine.begin() as conn:
+        return conn.execute(text("""
+            SELECT
+                document_id,
+                file_name,
+                gcs_path,
+                status,
+                error_message
+            FROM poc_ai_doc.documents
+            WHERE document_id = :document_id
+        """), {"document_id": document_id}).fetchone()
+
+
 def get_document_clauses(engine: Engine, document_id: str) -> list:
     with engine.begin() as conn:
         return conn.execute(text("""

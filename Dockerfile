@@ -8,6 +8,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
+    antiword \
+    tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 # install python deps
