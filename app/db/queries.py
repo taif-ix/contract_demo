@@ -107,6 +107,7 @@ def get_document_by_id(engine: Engine, document_id: str):
                 document_id,
                 file_name,
                 gcs_path,
+                raw_text,
                 status,
                 error_message
             FROM poc_ai_doc.documents

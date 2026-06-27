@@ -1,5 +1,6 @@
 import uuid
 import mimetypes
+import tempfile
 from pathlib import Path
 from typing import Annotated, List
 
@@ -13,7 +14,7 @@ from app.dependencies import get_db_engine
 from app.services import upload_file_to_gcs
 from app.services.pubsub import publish_document_job
 from worker.services.processor import process_document_job
-from app.utils import is_supported
+from app.utils import extract_text, is_supported
 from app.db import (
     create_queued_document,
     get_all_documents,
@@ -219,4 +220,47 @@ async def get_contract_file(
             "Content-Disposition": f'{disposition_type}; filename="{document.file_name}"',
             "Cache-Control": "private, max-age=300",
         },
+    )
+
+
+@router.get("/api/contracts/{document_id}/preview")
+async def get_contract_preview(
+    document_id: str,
+    settings: Annotated[Settings, Depends(get_settings)],
+    engine: Annotated[Engine, Depends(get_db_engine)],
+):
+    document = get_document_by_id(engine, document_id)
+
+    if not document:
+        return JSONResponse({"error": "Document not found"}, status_code=404)
+
+    if document.raw_text:
+        text_content = document.raw_text
+    else:
+        if not document.gcs_path:
+            return JSONResponse({"error": "Document does not have a GCS path"}, status_code=404)
+
+        bucket = storage.Client().bucket(settings.gcs_bucket_name)
+        blob = bucket.blob(document.gcs_path)
+
+        if not blob.exists():
+            return JSONResponse({"error": "Document file not found in Cloud Storage"}, status_code=404)
+
+        suffix = Path(document.file_name).suffix
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            temp_file.write(blob.download_as_bytes())
+
+        try:
+            text_content = extract_text(temp_path)
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+    if not text_content.strip():
+        text_content = "No preview text could be extracted from this document."
+
+    return Response(
+        text_content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Cache-Control": "private, max-age=300"},
     )
